@@ -1,63 +1,73 @@
 #!/usr/bin/env python3
-"""Myers diff algorithm with unified diff output and patch application."""
+"""diff_patch - Unified diff generation and patch application."""
 import sys
 
-def myers_diff(a, b):
-    n, m = len(a), len(b); max_d = n + m
-    v = {1: 0}; trace = []
-    for d in range(max_d + 1):
-        trace.append(dict(v))
-        for k in range(-d, d+1, 2):
-            if k == -d or (k != d and v.get(k-1, 0) < v.get(k+1, 0)):
-                x = v.get(k+1, 0)
-            else: x = v.get(k-1, 0) + 1
-            y = x - k
-            while x < n and y < m and a[x] == b[y]: x += 1; y += 1
-            v[k] = x
-            if x >= n and y >= m:
-                return _backtrack(trace, a, b, n, m)
-    return []
+def lcs_table(a, b):
+    m, n = len(a), len(b)
+    dp = [[0]*(n+1) for _ in range(m+1)]
+    for i in range(1, m+1):
+        for j in range(1, n+1):
+            if a[i-1] == b[j-1]:
+                dp[i][j] = dp[i-1][j-1] + 1
+            else:
+                dp[i][j] = max(dp[i-1][j], dp[i][j-1])
+    return dp
 
-def _backtrack(trace, a, b, n, m):
-    edits = []; x, y = n, m
-    for d in range(len(trace)-1, 0, -1):
-        v = trace[d-1]; k = x - y
-        if k == -d or (k != d and v.get(k-1, 0) < v.get(k+1, 0)):
-            prev_k = k + 1
-        else: prev_k = k - 1
-        prev_x = v.get(prev_k, 0); prev_y = prev_x - prev_k
-        while x > prev_x and y > prev_y:
-            edits.append((' ', a[x-1])); x -= 1; y -= 1
-        if x > prev_x: edits.append(('-', a[x-1])); x -= 1
-        elif y > prev_y: edits.append(('+', b[y-1])); y -= 1
-    edits.reverse(); return edits
+def unified_diff(old_lines, new_lines, old_name="a", new_name="b"):
+    dp = lcs_table(old_lines, new_lines)
+    ops = []
+    i, j = len(old_lines), len(new_lines)
+    while i > 0 or j > 0:
+        if i > 0 and j > 0 and old_lines[i-1] == new_lines[j-1]:
+            ops.append((" ", old_lines[i-1]))
+            i -= 1; j -= 1
+        elif j > 0 and (i == 0 or dp[i][j-1] >= dp[i-1][j]):
+            ops.append(("+", new_lines[j-1]))
+            j -= 1
+        else:
+            ops.append(("-", old_lines[i-1]))
+            i -= 1
+    ops.reverse()
+    lines = [f"--- {old_name}", f"+++ {new_name}"]
+    for op, line in ops:
+        lines.append(f"{op}{line}")
+    return "\n".join(lines)
 
-def unified_diff(a_lines, b_lines, a_name="a", b_name="b"):
-    edits = myers_diff(a_lines, b_lines)
-    output = [f"--- {a_name}", f"+++ {b_name}"]
-    for op, line in edits:
-        if op == ' ': output.append(f" {line}")
-        elif op == '-': output.append(f"-{line}")
-        elif op == '+': output.append(f"+{line}")
-    return "\n".join(output)
-
-def apply_patch(original, edits):
-    result = []; orig_idx = 0
-    for op, line in edits:
-        if op == ' ': result.append(line); orig_idx += 1
-        elif op == '-': orig_idx += 1
-        elif op == '+': result.append(line)
+def apply_patch(old_lines, patch_text):
+    result = []
+    for line in patch_text.split("\n"):
+        if line.startswith("---") or line.startswith("+++"):
+            continue
+        if line.startswith("+"):
+            result.append(line[1:])
+        elif line.startswith("-"):
+            continue
+        elif line.startswith(" "):
+            result.append(line[1:])
     return result
 
-def main():
-    a = ["the","quick","brown","fox","jumps","over","the","lazy","dog"]
-    b = ["the","quick","red","fox","jumps","over","the","happy","dog","!"]
-    edits = myers_diff(a, b)
-    print("Edits:")
-    for op, line in edits: print(f"  {op} {line}")
-    print(f"\nUnified diff:")
-    print(unified_diff(a, b))
-    patched = apply_patch(a, edits)
-    print(f"\nPatched matches b: {patched == b}")
+def count_changes(patch_text):
+    added = sum(1 for l in patch_text.split("\n") if l.startswith("+") and not l.startswith("+++"))
+    removed = sum(1 for l in patch_text.split("\n") if l.startswith("-") and not l.startswith("---"))
+    return added, removed
 
-if __name__ == "__main__": main()
+def test():
+    old = ["line1", "line2", "line3"]
+    new = ["line1", "modified", "line3", "line4"]
+    diff = unified_diff(old, new)
+    assert "+modified" in diff
+    assert "-line2" in diff
+    assert "+line4" in diff
+    # apply
+    result = apply_patch(old, diff)
+    assert result == new
+    # count
+    added, removed = count_changes(diff)
+    assert added == 2 and removed == 1
+    print("OK: diff_patch")
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "test":
+        test()
+    else:
+        print("Usage: diff_patch.py test")

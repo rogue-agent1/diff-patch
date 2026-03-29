@@ -1,9 +1,11 @@
-# Diff & Patch Engine
+# diff-patch
 
-Diff & Patch Engine — zero-dependency Python implementation.
+Unified diff generation and patch application.
 
 ## Usage
 
 ```bash
-python3 diff_patch.py
+python3 diff_patch.py test
 ```
+
+Zero dependencies. Python 3.8+.
