@@ -1,11 +1,9 @@
 # diff-patch
 
-Unified diff generation and patch application.
+Unified diff generator. Zero dependencies, single file, Python 3.8+.
 
 ## Usage
 
 ```bash
-python3 diff_patch.py test
+python3 diff_patch.py --help
 ```
-
-Zero dependencies. Python 3.8+.
